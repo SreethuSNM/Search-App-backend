@@ -1,0 +1,9 @@
+{
+  "/api/analytics/route": "app/api/analytics/route.js",
+  "/api/custom-code/apply/route": "app/api/custom-code/apply/route.js",
+  "/api/auth/authorize/route": "app/api/auth/authorize/route.js",
+  "/route": "app/route.js",
+  "/api/auth/callback/route": "app/api/auth/callback/route.js",
+  "/api/auth/token/route": "app/api/auth/token/route.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js"
+}

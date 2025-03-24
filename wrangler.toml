@@ -1,0 +1,12 @@
+name = "cb-server"
+main = ".open-next/worker.js"
+compatibility_date = "2024-12-30"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[[kv_namespaces]]
+binding = "WEBFLOW_AUTHENTICATION"
+id = "aa64050ef7804e7783fe9680daae80c5"

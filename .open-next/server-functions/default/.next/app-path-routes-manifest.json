@@ -1,0 +1,9 @@
+{
+  "/api/analytics/route": "/api/analytics",
+  "/api/custom-code/apply/route": "/api/custom-code/apply",
+  "/api/auth/authorize/route": "/api/auth/authorize",
+  "/route": "/",
+  "/api/auth/callback/route": "/api/auth/callback",
+  "/api/auth/token/route": "/api/auth/token",
+  "/favicon.ico/route": "/favicon.ico"
+}
