@@ -1,13 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ScriptController } from "@/app/lib/controllers/scriptControllers";
+import { WebflowClient } from "webflow-api";
+
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 interface CustomCodeRequestBody {
   targetType: string;
   targetId: string;
   scriptId: string;
-  location: string;
+  location: "header" | "footer"; // ✅ Restrict to valid values
   version: string;
+  
 }
+
+// Helper function to add CORS headers
+function withCORS(response: NextResponse) {
+  response.headers.set("Access-Control-Allow-Origin", "*");
+  response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  return response;
+}
+
+// Handle preflight requests
+export async function OPTIONS() {
+  return withCORS(new NextResponse(null, { status: 204 }));
+}
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,10 +37,32 @@ export async function POST(request: NextRequest) {
     // Get the Cloudflare KV binding
     const { env } = await getCloudflareContext({ async: true });
     
-    // Retrieve the access token from KV (assumed stored under the key "accessToken")
-    const accessToken = await env.WEBFLOW_AUTHENTICATION.get("accessToken");
+    // Log the key we're looking for
+    const authKey = `site-auth:${body.targetId}`;
+    console.log("Looking for auth data with key:", authKey);
+    
+    const storedAuth = await env.WEBFLOW_AUTHENTICATION.get(authKey);
+    console.log("Stored auth data:", storedAuth);
+
+    if (!storedAuth) {
+      console.error("No auth data found for key:", authKey);
+      return withCORS(NextResponse.json({ 
+        error: "Unauthorized: No authentication found",
+        details: `No auth data found for site ${body.targetId}`
+      }, { status: 401 }));
+    }
+    
+    const authData = JSON.parse(storedAuth);
+    console.log("Parsed auth data:", authData);
+    
+    const accessToken = authData?.accessToken;
     if (!accessToken) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      console.log("@@@@@@@@@@------No Access token")
+      console.error("No access token in auth data:", authData);
+      return withCORS(NextResponse.json({ 
+        error: "Unauthorized",
+        details: "No access token found in stored auth data"
+      }, { status: 401 }));
     }
 
     // Destructure required fields from the request body
@@ -31,36 +71,56 @@ export async function POST(request: NextRequest) {
 
     // Validate that all required fields are present
     if (!targetType || !targetId || !scriptId || !location || !version) {
-      return NextResponse.json(
+      return withCORS(NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
-      );
+      ));
     }
 
-    // Build a KV key based on the target type.
-    const kvKey = `${targetType}-custom-code:${targetId}:${scriptId}:${location}`;
+    // Create Webflow Client
+    const webflow = new WebflowClient({ accessToken });
+    const scriptController = new ScriptController(webflow);
 
-    // Create a value object to store
-    const valueObj = {
-      accessToken,
-      version,
-      timestamp: Date.now(),
-    };
-    const value = JSON.stringify(valueObj);
+    // Apply Custom Code
+    let result;
 
-    // Upsert the custom code in KV with an optional TTL (e.g., 24 hours = 86400 seconds)
-    await env.WEBFLOW_AUTHENTICATION.put(kvKey, value, { expirationTtl: 86400 });
-
-    // Return a success response, optionally including the KV key
-    return NextResponse.json({ result: "Custom code upserted in KV", key: kvKey }, { status: 200 });
-  } catch (error) {
-    console.error(
-      "Error applying custom code:",
-      error instanceof Error ? error.message : error
-    );
-    return NextResponse.json(
-      { error: "Failed to apply custom code" },
-      { status: 500 }
-    );
+    if (targetType === "site") {
+      // Upsert Custom Code to Site
+      result = await scriptController.upsertSiteCustomCode(
+        targetId,
+        scriptId,
+        location,
+        version
+      );
+    } else if (targetType === "page") {
+      // Upsert Custom Code to Page
+      result = await scriptController.upsertPageCustomCode(
+        targetId,
+        scriptId,
+        location,
+        version
+      );
+    } else {
+      return withCORS(NextResponse.json(
+        { error: "Invalid target type" },
+        { status: 400 }
+      ));
+    }
+  
+    return withCORS(NextResponse.json({ result }, { status: 200 }));
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error("Error applying custom code:", error.message);
+      return withCORS(NextResponse.json({ 
+        error: "Failed to apply custom code",
+        details: error.message
+      }, { status: 500 }));
+    } else {
+      console.error("Unknown error:", error);
+      return withCORS(NextResponse.json({ 
+        error: "Failed to apply custom code",
+        details: "An unknown error occurred"
+      }, { status: 500 }));
+    }
   }
 }

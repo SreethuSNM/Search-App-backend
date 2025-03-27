@@ -1,8 +1,9 @@
-import puppeteer from 'puppeteer';
+// app/api/analytics/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
-interface ScriptData {
+// Define interfaces
+interface AnalyticsScript {
   src: string | null;
   content: string | null;
   type: string | null;
@@ -10,97 +11,152 @@ interface ScriptData {
   defer: boolean;
 }
 
+interface AnalyticsResult {
+  analyticsScripts: AnalyticsScript[];
+  totalScripts: number;
+  totalAnalyticsScripts: number;
+}
+
+// Helper function to add CORS headers
+function withCORS(response: NextResponse) {
+  response.headers.set("Access-Control-Allow-Origin", "*");
+  response.headers.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+  response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  return response;
+}
+
+// Handle preflight requests
+export async function OPTIONS() {
+  return withCORS(new NextResponse(null, { status: 204 }));
+}
+
 export async function GET(request: NextRequest) {
   try {
-    // Get the Cloudflare context, including our KV bindings.
+    const { searchParams } = new URL(request.url);
+    const siteUrl = searchParams.get('siteUrl');
+    const siteId = searchParams.get('siteId');
+
+    if (!siteUrl || !siteId) {
+      return withCORS(NextResponse.json(
+        { success: false, error: "Missing siteUrl or siteId" }, 
+        { status: 400 }
+      ));
+    }
+
+    // Get the Cloudflare KV binding
     const { env } = await getCloudflareContext({ async: true });
     
-    // Retrieve the access token from KV under the key "accessToken".
-    const accessToken = await env.WEBFLOW_AUTHENTICATION.get("accessToken");
+    // Retrieve the access token from KV storage with the correct key format
+    const storedAuth = await env.WEBFLOW_AUTHENTICATION.get(`site-auth:${siteId}`);
+    console.log("Stored auth data:", storedAuth);
     
-    if (!accessToken) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!storedAuth) {
+      return withCORS(NextResponse.json(
+        { success: false, error: "Unauthorized - No stored auth" }, 
+        { status: 401 }
+      ));
     }
 
-    // Get siteUrl from query parameters
-    const searchParams = request.nextUrl.searchParams;
-    const siteUrl = searchParams.get('siteUrl');
+    const authData = JSON.parse(storedAuth);
+    console.log("Parsed auth data:", authData);
 
-    if (!siteUrl) {
-      return NextResponse.json(
-        { error: "Missing or invalid siteUrl parameter" },
-        { status: 400 }
-      );
+    if (!authData.accessToken) {
+      return withCORS(NextResponse.json(
+        { success: false, error: "Unauthorized - Invalid auth data" }, 
+        { status: 401 }
+      ));
     }
 
-    // Launch Puppeteer browser and scrape scripts
-    const browser = await puppeteer.launch({ headless: true });
-    const page = await browser.newPage();
-    
-    try {
-      await page.goto(siteUrl, { waitUntil: 'networkidle2' });
+    // Fetch the site content
+    const response = await fetch(siteUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch site content: ${response.statusText}`);
+    }
+
+    const html = await response.text();
+
+    // Improved script extraction regex
+    const scriptRegex = /<script([^>]*)>([\s\S]*?)<\/script>/g;
+    const srcRegex = /src=["']([^"']+)["']/;
+    const typeRegex = /type=["']([^"']+)["']/;
+    const asyncRegex = /async/;
+    const deferRegex = /defer/;
+
+    const scripts: AnalyticsScript[] = [];
+    let match;
+
+    while ((match = scriptRegex.exec(html)) !== null) {
+      const attributes = match[1];
+      const content = match[2];
       
-      const scripts: ScriptData[] = await page.evaluate(() => {
-        return Array.from(document.scripts).map(script => ({
-          src: script.src || null,
-          content: script.textContent || script.innerHTML || null,
-          type: script.type || null,
-          async: script.async,
-          defer: script.defer
-        }));
-      });
+      const srcMatch = attributes.match(srcRegex);
+      const typeMatch = attributes.match(typeRegex);
+      const async = asyncRegex.test(attributes);
+      const defer = deferRegex.test(attributes);
 
-      // Filter for analytics scripts
-      const analyticsScripts = scripts.filter(script => {
-        const src = script.src?.toLowerCase() || '';
-        const content = script.content?.toLowerCase() || '';
-        return (
-          // Google Analytics
-          src.includes('google-analytics') ||
-          src.includes('googletagmanager') ||
-          src.includes('gtag') ||
-          content.includes('gtag') ||
-          content.includes('datalayer') ||
-          content.includes('google-analytics') ||
-          // Facebook Pixel
-          src.includes('facebook') ||
-          src.includes('fbq') ||
-          content.includes('fbq') ||
-          content.includes('facebook') ||
-          // Hotjar
-          src.includes('hotjar') ||
+      // Only add if it's an analytics script
+      const isAnalytics = (
+        // Check src
+        (srcMatch && (
+          srcMatch[1].includes('google-analytics') ||
+          srcMatch[1].includes('googletagmanager') ||
+          srcMatch[1].includes('gtag') ||
+          srcMatch[1].includes('hotjar') ||
+          srcMatch[1].includes('facebook') ||
+          srcMatch[1].includes('fbq')
+        )) ||
+        // Check content
+        (content && (
           content.includes('hotjar') ||
-          // Other common analytics
-          src.includes('mixpanel') ||
-          src.includes('segment') ||
-          src.includes('amplitude') ||
-          src.includes('heap') ||
-          src.includes('intercom') ||
-          src.includes('drift') ||
-          src.includes('crisp') ||
-          src.includes('zendesk')
-        );
-      });
+          content.includes('fbq') ||
+          content.includes('dataLayer') ||
+          content.includes('gtag') ||
+          content.includes('googletagmanager')
+        ))
+      );
 
-      console.log('Found scripts:', scripts.length);
-      console.log('Analytics scripts:', analyticsScripts.length);
-      analyticsScripts.forEach(script => {
-        console.log('Script:', {
-          src: script.src,
-          contentLength: script.content?.length,
-          type: script.type
+      if (isAnalytics) {
+        scripts.push({
+          src: srcMatch ? srcMatch[1] : null,
+          content: content.trim() || null,
+          type: typeMatch ? typeMatch[1] : null,
+          async,
+          defer
         });
-      });
-
-      return NextResponse.json({ analyticsScripts });
-    } finally {
-      await browser.close();
+      }
     }
-  } catch (error) {
-    console.error('Error:', error);
-    return NextResponse.json(
-      { error: "Failed to fetch analytics scripts" },
+
+    // Log the results for debugging
+    console.log('Found analytics scripts:', scripts.length);
+    scripts.forEach(script => {
+      console.log('Script:', {
+        src: script.src,
+        type: script.type,
+        async: script.async,
+        defer: script.defer,
+        contentLength: script.content?.length
+      });
+    });
+
+    const result: AnalyticsResult = {
+      analyticsScripts: scripts,
+      totalScripts: scripts.length,
+      totalAnalyticsScripts: scripts.length
+    };
+
+    return withCORS(NextResponse.json({ 
+      success: true,
+      data: result
+    }));
+
+  } catch (error: unknown) {
+    console.error("Error fetching analytics scripts:", error);
+    return withCORS(NextResponse.json(
+      { 
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to fetch analytics scripts" 
+      },
       { status: 500 }
-    );
+    ));
   }
 }
