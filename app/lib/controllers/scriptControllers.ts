@@ -3,7 +3,7 @@ import { CacheService } from "../services/CacheService";
 import { WebflowRateLimiter } from "../services/WebflowRateLimiter";
 import crypto from "crypto";
 import {
-  CustomCodeHostedRequest,
+ 
   CustomCodeInlineRequest,
 } from "webflow-api/api/resources/scripts";
 
@@ -57,32 +57,10 @@ export class ScriptController {
     }
   }
 
-  async registerHostedScript(siteId: string, request: CustomCodeHostedRequest) {
-    try {
-      if (!request.hostedLocation) {
-        throw new Error("Hosted location is required");
-      }
-      const integrityHash = await this.generateSRI(request.hostedLocation);
-
-      const scriptData = {
-        hostedLocation: request.hostedLocation,
-        integrityHash: integrityHash,
-        canCopy: request.canCopy ?? true,
-        version: request.version,
-        displayName: request.displayName,
-      };
-      return await this.webflow.scripts.registerHosted(siteId, scriptData);
-    } catch (error) {
-      console.error("Error registering hosted script:", error);
-      throw error;
-    }
-  }
-
+  
   async registerHostedScripts(siteId: string) {
     try {
-      // if (!request.hostedLocation) {
-      //   throw new Error("Hosted location is required");
-      // }
+      console.log("Siteid in hosted script",siteId)
       const hostedLocation = "https://cdn.jsdelivr.net/gh/snm62/consentbit@08beb63/consentbit.js";
        const integrityHash = await this.generateSRI(hostedLocation);
 
@@ -94,6 +72,7 @@ export class ScriptController {
         version: "1.0.0",
         displayName: `Consent Script${Date.now()}`,
       };
+      console.log("scriptData",scriptData)
       return await this.webflow.scripts.registerHosted(siteId, scriptData);
     } catch (error) {
       console.error("Error registering hosted script:", error);

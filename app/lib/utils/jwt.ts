@@ -18,7 +18,7 @@ interface AuthRequestBody {
 }
 
 const createSessionToken = async (user: User) => {
-  const secret = new TextEncoder().encode(process.env.WEBFLOW_CLIENT_SECRET);
+  const secret = new TextEncoder().encode(process.env.CLIENT_SECRET);
 
   const sessionToken = await new SignJWT({ user })
     .setProtectedHeader({ alg: "HS256" })
@@ -26,7 +26,7 @@ const createSessionToken = async (user: User) => {
     .sign(secret);
 
   const decodedToken = await jwtVerify(sessionToken, secret);
-
+console.log("____inside create session_____ ",sessionToken)
   return {
     sessionToken,
     exp: decodedToken.payload.exp,
@@ -69,8 +69,11 @@ const getAccessToken = async (request: NextRequest): Promise<string | null> => {
     if (request.method === "POST") {
       const body = (await request.json()) as AuthRequestBody;
       siteId = body.siteId;
+      console.log("siteId",siteId)
     } else if (request.method === "GET") {
       siteId = request.nextUrl.searchParams.get("siteId");
+      console.log("siteId in params",siteId)
+
     }
 
     if (!siteId) {
@@ -79,7 +82,8 @@ const getAccessToken = async (request: NextRequest): Promise<string | null> => {
     }
 
     const { env } = await getCloudflareContext({ async: true });
-    const stored = await env.WEBFLOW_AUTHENTICATION.get(`site-auth:${siteId}`);
+    const stored = await env.WEBFLOW_AUTHENTICATION.get(siteId);
+    console.log("stored info in kv",stored)
     if (stored) {
       const parsed = JSON.parse(stored);
       return parsed.accessToken;
