@@ -1,10 +1,11 @@
 {
   "/api/analytics/route": "/api/analytics",
-  "/api/auth/callback/route": "/api/auth/callback",
+  "/api/auth/token/route": "/api/auth/token",
   "/api/custom-code/apply-custom-code/route": "/api/custom-code/apply-custom-code",
   "/api/auth/authorize/route": "/api/auth/authorize",
-  "/api/auth/token/route": "/api/auth/token",
-  "/route": "/",
   "/api/custom-code/apply/route": "/api/custom-code/apply",
+  "/api/save-categories/route": "/api/save-categories",
+  "/api/auth/callback/route": "/api/auth/callback",
+  "/route": "/",
   "/favicon.ico/route": "/favicon.ico"
 }
