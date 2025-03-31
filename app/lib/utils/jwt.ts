@@ -10,6 +10,8 @@ interface User {
 
 interface JWTPayload {
   user: User;
+  exp :number;
+
 }
 
 interface AuthRequestBody {
@@ -54,7 +56,7 @@ const verifyAuth = async (request: NextRequest): Promise<string | null> => {
     if (stored) {
       const parsed = JSON.parse(stored);
       console.log("inside verify auth access token", parsed.accessToken);
-      return parsed.accessToken;
+      return parsed.accessToken
     }
     return null;
   } catch {
@@ -98,10 +100,35 @@ const getAccessToken = async (request: NextRequest): Promise<string | null> => {
   }
 };
 
+const getSiteIdFromAccessToken = async (accessToken: string): Promise<string | null> => {
+  try {
+    const { env } = await getCloudflareContext({ async: true });
+    
+    // Get all keys from KV
+    const keys = await env.WEBFLOW_AUTHENTICATION.list();
+    
+    // Iterate through keys to find matching access token
+    for (const key of keys.keys) {
+      const stored = await env.WEBFLOW_AUTHENTICATION.get(key.name);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.accessToken === accessToken) {
+          return String(key.name);// The key name is the site ID
+        }
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting site ID:', error);
+    return null;
+  }
+} 
 const jwtUtils = {
   createSessionToken,
   verifyAuth,
   getAccessToken,
+  getSiteIdFromAccessToken
 };
 
 export default jwtUtils;

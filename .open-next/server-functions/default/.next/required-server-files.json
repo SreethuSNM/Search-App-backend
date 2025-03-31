@@ -2,7 +2,6 @@
   "version": 1,
   "config": {
     "env": {},
-    "webpack": null,
     "eslint": {
       "ignoreDuringBuilds": false
     },
@@ -14,7 +13,7 @@
     "cleanDistDir": true,
     "assetPrefix": "",
     "cacheMaxMemorySize": 52428800,
-    "configOrigin": "next.config.ts",
+    "configOrigin": "next.config.js",
     "useFileSystemPublicRoutes": true,
     "generateEtags": true,
     "pageExtensions": [
@@ -199,6 +198,7 @@
       "dynamicIO": false,
       "inlineCss": false,
       "useCache": false,
+      "serverActions": true,
       "optimizePackageImports": [
         "lucide-react",
         "date-fns",
@@ -281,7 +281,16 @@
     },
     "htmlLimitedBots": "Mediapartners-Google|Slurp|DuckDuckBot|baiduspider|yandex|sogou|bitlybot|tumblr|vkShare|quora link preview|redditbot|ia_archiver|Bingbot|BingPreview|applebot|facebookexternalhit|facebookcatalog|Twitterbot|LinkedInBot|Slackbot|Discordbot|WhatsApp|SkypeUriPreview",
     "bundlePagesRouterDependencies": false,
-    "configFileName": "next.config.ts"
+    "configFileName": "next.config.js",
+    "openNext": {
+      "buildCommand": "npm run build",
+      "devCommand": "npm run dev",
+      "installCommand": "npm install",
+      "outputDirectory": ".next",
+      "serverComponentsExternalPackages": [
+        "@opennextjs/cloudflare"
+      ]
+    }
   },
   "appDir": "C:\\Seattle\\Cookie App\\Consernbit-Cloudflare-Server-Test\\cb-server",
   "relativeAppDir": "",

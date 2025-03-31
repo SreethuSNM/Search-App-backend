@@ -5,6 +5,7 @@
        case 297: r(require("./chunks/297.js")); break;
        case 548: r(require("./chunks/548.js")); break;
        case 563: r(require("./chunks/563.js")); break;
+       case 682: r(require("./chunks/682.js")); break;
        case 311: e[o] = 1; break;
        default: throw new Error(`Unknown chunk ${o}`);
     }

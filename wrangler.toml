@@ -10,6 +10,10 @@ binding = "ASSETS"
 [[kv_namespaces]]
 binding = "WEBFLOW_AUTHENTICATION"
 id = "aa64050ef7804e7783fe9680daae80c5"
+[[kv_namespaces]]
+binding = "CMP_MANUAL"
+id = "00daba26dc5a43a2a40f5e42039907fa"
+
 
 [vars]
 CLIENT_SECRET = "6ff71ac8e89d8ed6adedfaafe585e0d4537f88ed26252c9a03f8601123d35f19"
