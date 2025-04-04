@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import jwt from "../../../lib/utils/jwt";
-
 // Define interfaces
 interface TokenRequestBody {
   siteId: string;

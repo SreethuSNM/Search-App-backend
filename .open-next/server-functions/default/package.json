@@ -15,6 +15,7 @@
     "build:cloudflare": "next build && opennextjs-cloudflare"
   },
   "dependencies": {
+    "crypto-js": "^4.2.0",
     "jose": "^6.0.10",
     "next": "^15.2.3",
     "puppeteer": "^24.4.0",

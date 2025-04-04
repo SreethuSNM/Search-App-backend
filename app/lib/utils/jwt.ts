@@ -37,7 +37,9 @@ console.log("____inside create session_____ ",sessionToken)
 
 const verifyAuth = async (request: NextRequest): Promise<string | null> => {
   const authHeader = request.headers.get("authorization");
+  console.log("authheader", authHeader)
   const sessionToken = authHeader?.split(" ")[1];
+  console.log("session token",sessionToken)
   console.log("inside verify auth session", sessionToken);
 
   if (!sessionToken) {
@@ -45,7 +47,7 @@ const verifyAuth = async (request: NextRequest): Promise<string | null> => {
   }
 
   try {
-    const secret = new TextEncoder().encode(process.env.WEBFLOW_CLIENT_SECRET);
+    const secret = new TextEncoder().encode(process.env.CLIENT_SECRET);
     const { payload } = (await jwtVerify(sessionToken, secret)) as {
       payload: JWTPayload;
     };

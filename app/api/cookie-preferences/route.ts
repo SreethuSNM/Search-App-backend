@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import jwt from "../../lib/utils/jwt";
-import withCORS from "../../lib/utils/cors";
+function withCORS(response: NextResponse) {
+  response.headers.set("Access-Control-Allow-Origin", "*");
+  response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  return response;
+}
+
+// Handle preflight requests
+export async function OPTIONS() {
+  return withCORS(new NextResponse(null, { status: 204 }));
+}
+
 
 interface CookiePreferences {
     visitorId: string;

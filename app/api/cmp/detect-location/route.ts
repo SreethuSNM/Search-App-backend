@@ -1,76 +1,134 @@
 import { NextRequest, NextResponse } from "next/server";
-import selectBannerTemplate from "../../../lib/services/BannerType"
-import jwt from "../../../lib/utils/jwt";
+import selectBannerTemplate from "../../../lib/services/BannerType";
+import { verifyToken } from "@/app/lib/utils/visitor-token-verifiy";
+import findSiteDetails from "@/app/lib/utils/find-site-details";
 
-interface DetectLocationRequestBody {
-  siteId: string;  
+// Allowed origins for CORS
+const ALLOWED_ORIGINS = [
+  'https://consentbits-stellar-site.webflow.io',
+  'https://*.webflow.io',
+  'http://localhost:3000'
+];
+
+/**
+ * CORS helper function.
+ */
+function withCORS(response: NextResponse, origin: string | null) {
+  const headers = new Headers(response.headers);
+  const allowedOrigin =
+    origin && ALLOWED_ORIGINS.some(allowed =>
+      allowed.includes('*')
+        ? origin.endsWith(allowed.replace('*', ''))
+        : allowed === origin
+    )
+      ? origin
+      : ALLOWED_ORIGINS[0];
+  headers.set("Access-Control-Allow-Origin", allowedOrigin);
+  headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-CSRF-Token");
+  headers.set("Access-Control-Allow-Credentials", "true");
+  headers.set("Access-Control-Max-Age", "86400");
+  headers.set("Vary", "Origin");
+  return new NextResponse(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
-// Helper function to add CORS headers
-function withCORS(response: NextResponse) {
-  response.headers.set("Access-Control-Allow-Origin", "*");
-  response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  return response;
+/**
+ * Helper to create a CORS-enabled error response.
+ */
+function errorResponse(message: string, status: number, origin: string | null) {
+  return withCORS(
+    new NextResponse(JSON.stringify({ error: message }), { status }),
+    origin
+  );
 }
 
-// Handle preflight requests
-export async function OPTIONS() {
-  return withCORS(new NextResponse(null, { status: 204 }));
+/**
+ * Handle preflight OPTIONS request.
+ */
+export async function OPTIONS(request: NextRequest) {
+  const origin = request.headers.get("origin");
+  const allowedOrigin =
+    origin && ALLOWED_ORIGINS.some(allowed =>
+      allowed.includes('*')
+        ? origin.endsWith(allowed.replace('*', ''))
+        : allowed === origin
+    )
+      ? origin
+      : ALLOWED_ORIGINS[0];
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": allowedOrigin,
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-CSRF-Token",
+      "Access-Control-Allow-Credentials": "true",
+      "Access-Control-Max-Age": "86400",
+      "Vary": "Origin"
+    },
+  });
 }
 
-export async function POST(request: NextRequest) {
+/**
+ * GET: Determine banner type based on location data.
+ */
+export async function GET(request: NextRequest) {
+  const origin = request.headers.get("origin");
+
   try {
-    // Clone the request to safely parse JSON and log it
-    const clonedRequest = request.clone();
-    const body = (await clonedRequest.json()) as DetectLocationRequestBody;
-    console.log("Detect Location Request body:", body);
-// Verify site authentication using the session token
-      const accessToken = await jwt.verifyAuth(request);
-
-      if (!accessToken) {
-        console.error("Authentication failed:", accessToken);
-        return withCORS(NextResponse.json({ 
-          error: "Unauthorized",
-          details: accessToken || "Authentication failed"
-        }, { status: 401 }));
-      }
-  
-     
-     
-      const siteId = await jwt.getSiteIdFromAccessToken(accessToken) ;
-      if (!siteId) {
-        console.error("SiteId not found:", siteId);
-        return withCORS(NextResponse.json({ 
-          error: "Unauthorized",
-          details: siteId || "SiteId failed"
-        }, { status: 401 }));
-      }
-
-
- 
-    
-    console.log('Request Headers:', [...request.headers]);
-    const country = request.headers.get('CF-IPCountry') || 'UNKNOWN';
-    const continent = request.headers.get('CF-IPContinent') || 'UNKNOWN';
-    
-    console.log('Detected location:', { country, continent });
-    const currentBannerType = selectBannerTemplate(country);
-     
-    return withCORS(NextResponse.json({ currentBannerType }, { status: 200 }));
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      console.error("Error applying custom code:", error.message);
-      return withCORS(NextResponse.json({ 
-        error: "Failed to apply custom code",
-        details: error.message
-      }, { status: 500 }));
-    } else {
-      console.error("Unknown error:", error);
-      return withCORS(NextResponse.json({ 
-        error: "Failed to apply custom code",
-        details: "An unknown error occurred"
-      }, { status: 500 }));
+    const authHeader = request.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return errorResponse("Unauthorized", 401, origin);
     }
+    
+    const token = authHeader.split(" ")[1];
+    
+    // Extract siteName from URL query parameters
+    const url = new URL(request.url);
+    const siteName = url.searchParams.get('siteName');
+    
+    console.log("Extracted siteName from query params:", siteName); // Debug log
+    
+    if (!siteName) {
+      return errorResponse("Site name is required", 400, origin);
+    }
+
+    try {
+      const { isValid, error } = await verifyToken(token, siteName);
+      
+      if (!isValid) {
+        return errorResponse(error || "Invalid token", 401, origin);
+      }
+    } catch (tokenError) {
+      console.error("Token verification failed:", tokenError);
+      return errorResponse("Token verification failed", 401, origin);
+    }
+    
+    const siteDetails = await findSiteDetails(siteName);
+    if (!siteDetails) {
+      console.error("Site not found for:", siteName); // Debug log
+      return errorResponse("Site not found", 404, origin);
+    }
+    
+    // Log headers and extract location data from Cloudflare headers
+    console.log("Request Headers:", [...request.headers]);
+    const country = request.headers.get("CF-IPCountry") || "UNKNOWN";
+    const continent = request.headers.get("CF-IPContinent") || "UNKNOWN";
+    console.log("Detected location:", { country, continent });
+    
+    // Determine banner type based on country
+    const currentBannerType = selectBannerTemplate(country);
+    
+    return withCORS(
+      new NextResponse(JSON.stringify({ bannerType: currentBannerType }), { status: 200 }),
+      origin
+    );
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred";
+    console.error("Error in GET handler:", message);
+    return errorResponse("Internal server error", 500, origin);
   }
 }

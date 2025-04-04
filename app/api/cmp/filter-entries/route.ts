@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import jwt from "../../../lib/utils/jwt";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import findSiteDetails from "@/app/lib/utils/find-site-details";
+import { verifyToken } from "@/app/lib/utils/visitor-token-verifiy";
+// Helper function to add CORS headers
+function withCORS(response: NextResponse) {
+  response.headers.set("Access-Control-Allow-Origin", "*");
+  response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  return response;
+}
+
+// Handle preflight requests
+export async function OPTIONS() {
+  return withCORS(new NextResponse(null, { status: 204 }));
+}
 
 interface KVEntry {
   name: string;
@@ -64,19 +77,6 @@ interface ConsentEntry {
 
 
 
-// Helper function to add CORS headers
-function withCORS(response: NextResponse) {
-  response.headers.set("Access-Control-Allow-Origin", "*");
-  response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  return response;
-}
-
-// Handle preflight requests
-export async function OPTIONS() {
-  return withCORS(new NextResponse(null, { status: 204 }));
-}
-
 
 
 async function filterKVByClientId(siteId :string) {
@@ -98,7 +98,7 @@ async function filterKVByClientId(siteId :string) {
   
       for (const entry of kvEntries.keys) {
         try {
-          const value = await env.CMP_MANUAL.get(entry.name);
+          const value = await env.WEBFLOW_AUTHENTICATION.get(entry.name);
           if (value) {
             const parsedValue = JSON.parse(value) as ConsentEntry;
             if (parsedValue.siteId === siteId) {
@@ -136,28 +136,36 @@ export async function POST(request: NextRequest) {
    
     
   
-      // Verify site authentication using the session token
-      const accessToken = await jwt.verifyAuth(request);
-        if (!accessToken) {
-            console.error("Authentication failed:", accessToken);
-            return withCORS(NextResponse.json({ 
-              error: "Unauthorized",
-              details: accessToken || "Authentication failed"
-            }, { status: 401 }));
-          }
-
-          const siteId = await jwt.getSiteIdFromAccessToken(accessToken) ;
-          if (!siteId) {
-            console.error("SiteId not found:", siteId);
-            return withCORS(NextResponse.json({ 
-              error: "Unauthorized",
-              details: siteId || "SiteId failed"
-            }, { status: 401 }));
-          }
-   
+              const authHeader = request.headers.get('Authorization');
+              if (!authHeader || !authHeader.startsWith('Bearer ')) {
+                  return withCORS(NextResponse.json(
+                      { error: 'Unauthorized' },
+                      { status: 401 }
+                  ));
+              }
+        const siteName="sitename"
+              const token = authHeader.split(' ')[1];
+              const { isValid, error} = await verifyToken(token,siteName);
+      
+              if (!isValid || !siteName) {
+                  return withCORS(NextResponse.json(
+                      { error: error || 'Invalid site name' },
+                      { status: 401 }
+                  ));
+              }
+      
+              // Get site details
+              const siteDetails = await findSiteDetails(siteName);
+              if (!siteDetails) {
+                  return withCORS(NextResponse.json(
+                      { error: 'Site details not found' },
+                      { status: 404 }
+                  ));
+              }
+      
   
 
-    const filteredData = await filterKVByClientId(siteId);
+    const filteredData = await filterKVByClientId(siteDetails.siteId);
     console.log('Total entries retrieved:', filteredData.length);
   
     const formattedOutput = {
