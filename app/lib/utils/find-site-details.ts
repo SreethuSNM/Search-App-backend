@@ -13,6 +13,8 @@ export default async function findSiteDetails(siteName: string): Promise<SiteDet
     try {
         const { env } = await getCloudflareContext({ async: true });
         const keys = await env.WEBFLOW_AUTHENTICATION.list();
+        console.log("siteName",siteName)
+        console.log("ev keys",keys)
         
         for (const key of keys.keys) {
             const value = await env.WEBFLOW_AUTHENTICATION.get(key.name);

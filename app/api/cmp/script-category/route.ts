@@ -4,24 +4,24 @@ import { verifyToken } from '@/app/lib/utils/visitor-token-verifiy';
 import findSiteDetails from '@/app/lib/utils/find-site-details';
 
 // Allowed origins for CORS
-const ALLOWED_ORIGINS = [
-  'https://consentbits-stellar-site.webflow.io',
-  'https://*.webflow.io',
-  'http://localhost:3000'
-];
+// const ALLOWED_ORIGINS = [
+//   'https://consentbits-stellar-site.webflow.io',
+//   'https://*.webflow.io',
+//   'http://localhost:3000'
+// ];
 
 /**
  * Add CORS headers to the response.
  */
-function withCORS(response: NextResponse, origin: string | null) {
+function withCORS(response: NextResponse, ) {
   const headers = new Headers(response.headers);
   
   // Determine allowed origin
-  const allowedOrigin = origin && ALLOWED_ORIGINS.some(allowed => 
-    allowed.includes('*') ? origin.endsWith(allowed.replace('*', '')) : allowed === origin
-  ) ? origin : ALLOWED_ORIGINS[0];
+  // const allowedOrigin = origin && ALLOWED_ORIGINS.some(allowed => 
+  //   allowed.includes('*') ? origin.endsWith(allowed.replace('*', '')) : allowed === origin
+  // ) ? origin : ALLOWED_ORIGINS[0];
 
-  headers.set("Access-Control-Allow-Origin", allowedOrigin);
+  headers.set("Access-Control-Allow-Origin", "*");
   headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-CSRF-Token, X-Request-ID");
   headers.set("Access-Control-Allow-Credentials", "true");
@@ -38,26 +38,26 @@ function withCORS(response: NextResponse, origin: string | null) {
 /**
  * Helper to create a CORS-enabled error response.
  */
-function errorResponse(message: string, status: number, origin: string | null) {
+function errorResponse(message: string, status: number) {
   return withCORS(
     new NextResponse(JSON.stringify({ error: message }), { status }),
-    origin
+    
   );
 }
 
 /**
  * Handle preflight OPTIONS request.
  */
-export async function OPTIONS(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  const allowedOrigin = origin && ALLOWED_ORIGINS.some(allowed => 
-    allowed.includes('*') ? origin.endsWith(allowed.replace('*', '')) : allowed === origin
-  ) ? origin : ALLOWED_ORIGINS[0];
+export async function OPTIONS() {
+  // const origin = request.headers.get("origin");
+  // const allowedOrigin = origin && ALLOWED_ORIGINS.some(allowed => 
+  //   allowed.includes('*') ? origin.endsWith(allowed.replace('*', '')) : allowed === origin
+  // ) ? origin : ALLOWED_ORIGINS[0];
 
   return new NextResponse(null, {
     status: 204,
     headers: {
-      "Access-Control-Allow-Origin": allowedOrigin,
+      "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-CSRF-Token, X-Request-ID",
       "Access-Control-Allow-Credentials": "true",
@@ -75,12 +75,12 @@ interface RequestBodyType {
  * GET: Retrieve script categories from KV after token verification.
  */
 export async function POST(request: NextRequest) {
-  const origin = request.headers.get("origin");
+  // const origin = request.headers.get("origin");
 
   try {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return errorResponse("Unauthorized", 401, origin);
+      return errorResponse("Unauthorized", 401);
     }
   
     const token = authHeader.split(" ")[1];
@@ -91,28 +91,28 @@ export async function POST(request: NextRequest) {
     console.log("SITE NAME :",siteName);
     
     if (!siteName) {
-      return errorResponse("Site name is required", 400, origin);
+      return errorResponse("Site name is required", 400);
     }
     
     try {
       const { isValid, error } = await verifyToken(token, siteName);
       if (!isValid) {
-        return errorResponse(error || "Invalid token or site name", 401, origin);
+        return errorResponse(error || "Invalid token or site name", 401);
       }
     } catch (tokenError) {
       console.error("Token verification failed:", tokenError);
-      return errorResponse("Token verification failed", 401, origin);
+      return errorResponse("Token verification failed", 401);
     }
     
     const siteDetails = await findSiteDetails(siteName);
     if (!siteDetails) {
-      return errorResponse("Site details not found", 404, origin);
+      return errorResponse("Site details not found", 404);
     }
     
     const context = await getCloudflareContext();
     if (!context?.env?.WEBFLOW_AUTHENTICATION) {
       console.error("KV binding missing or misconfigured");
-      return errorResponse("Internal server error: KV binding missing", 500, origin);
+      return errorResponse("Internal server error: KV binding missing", 500);
     }
     
     const kvKey = `script-categories:${siteDetails.siteId}`;
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
           scripts: [],
           message: "No script categories found for this site"
         }), { status: 200 }),
-        origin
+        
       );
     }
     
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
           scripts: scriptData,
           visitorId: visitorId 
         }), { status: 200 }),
-        origin
+        
       );
     } catch (parseError) {
       console.error("Failed to parse script data:", parseError, value);
@@ -144,11 +144,11 @@ export async function POST(request: NextRequest) {
           scripts: [],
           message: "Error parsing script categories"
         }), { status: 500 }),
-        origin
+        
       );
     }
   } catch (err) {
     console.error("Unexpected error in POST handler:", err);
-    return errorResponse("Internal server error", 500, origin);
+    return errorResponse("Internal server error", 500);
   }
 }

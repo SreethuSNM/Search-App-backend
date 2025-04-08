@@ -3,30 +3,20 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { verifyToken } from "@/app/lib/utils/visitor-token-verifiy";
 import findSiteDetails from "@/app/lib/utils/find-site-details";
 
-// Helper function to add CORS headers
-function withCORS(response: NextResponse) {
-  response.headers.set("Access-Control-Allow-Origin", "*");
-  response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  return response;
-}
-
-// Handle preflight requests
-export async function OPTIONS() {
-  return withCORS(new NextResponse(null, { status: 204 }));
-}
+// --- Interfaces ---
 
 interface EncryptedData {
   encryptedData: string;
   iv: number[];
   key: number[];
 }
+
 interface ConsentCookies {
-  necessary?: Record<string, unknown>[]; 
-  marketing?: Record<string, unknown>[]; 
-  personalization?: Record<string, unknown>[]; 
-  analytics?: Record<string, unknown>[]; 
-  other?: Record<string, unknown>[]; 
+  necessary?: Record<string, unknown>[];
+  marketing?: Record<string, unknown>[];
+  personalization?: Record<string, unknown>[];
+  analytics?: Record<string, unknown>[];
+  other?: Record<string, unknown>[];
 }
 
 interface ConsentRequest {
@@ -47,42 +37,73 @@ interface ConsentRequest {
   bannerType: string;
 }
 
+// --- Preflight for CORS ---
+// --- CORS Helper ---
+
+function withCORS(response: NextResponse | Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set("Access-Control-Allow-Origin", "*");
+  headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-CSRF-Token");
+  headers.set("Access-Control-Allow-Credentials", "true");
+  headers.set("Access-Control-Max-Age", "86400");
+  headers.set("Vary", "Origin");
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+
+export async function OPTIONS() {
+  return withCORS(new Response(null, { status: 204 }));
+}
+
+// --- Main POST handler ---
 
 export async function POST(request: NextRequest) {
   try {
     const data: ConsentRequest = await request.json();
-    console.log("Raw encrypted request body:", data);
-     const { env } = await getCloudflareContext({ async: true });
-      // Get token from Authorization header
-            const authHeader = request.headers.get('Authorization');
-            if (!authHeader || !authHeader.startsWith('Bearer ')) {
-                return withCORS(NextResponse.json(
-                    { error: 'Unauthorized' },
-                    { status: 401 }
-                ));
-            }
-    
-            const token = authHeader.split(' ')[1];
-            const { isValid, error,siteName } = await verifyToken(token,data.clientId);
-    
-            if (!isValid || !siteName) {
-                return withCORS(NextResponse.json(
-                    { error: error || 'Invalid site name' },
-                    { status: 401 }
-                ));
-            }
-    
-            // Get site details
-            const siteDetails = await findSiteDetails(siteName);
-            if (!siteDetails) {
-                return withCORS(NextResponse.json(
-                    { error: 'Site details not found' },
-                    { status: 404 }
-                ));
-            }
-    
+    console.log("INSIDE CONSENT SAVE POST REQUEST:", data);
 
-  
+    const { env } = await getCloudflareContext({ async: true });
+
+    const authHeader = request.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return withCORS(
+        NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      );
+    }
+
+    const token = authHeader.split(" ")[1];
+    const rawUrl = data.clientId.startsWith("http")
+      ? data.clientId
+      : `https://${data.clientId}`;
+    const url = new URL(rawUrl);
+    const hostname = url.hostname.replace(/^www\./, "");
+
+    const siteName = hostname
+      .replace(/\.webflow\.io$/, "")
+      .replace(/\.(com|net|org|io|co|dev|xyz|info|studio)$/, "");
+
+    const { isValid, error } = await verifyToken(token, siteName);
+    if (!isValid) {
+      return withCORS(
+        NextResponse.json(
+          { error: error || "Invalid site name" },
+          { status: 401 }
+        )
+      );
+    }
+
+    const siteDetails = await findSiteDetails(siteName);
+    if (!siteDetails) {
+      return withCORS(
+        NextResponse.json({ error: "Site details not found" }, { status: 404 })
+      );
+    }
 
     // Decrypt visitor ID & preferences
     const decryptedVisitorId = await decryptData(
@@ -141,20 +162,21 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    const kvKey = `${data.clientId}:${decryptedVisitorId}`;
+    const kvKey = `Cookie-Preferences:${data.clientId}:${decryptedVisitorId}`;
     console.log("KV key to store:", kvKey);
 
     try {
       await env.WEBFLOW_AUTHENTICATION.put(kvKey, JSON.stringify(consentData));
-    }
-      catch (error: unknown) {
-        if (error instanceof Error) {
-          return internalServerErrorResponse("Error processing consent", error);
-        } else {
-          return internalServerErrorResponse("Unknown error occurred", new Error(String(error)));
-        }
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        return internalServerErrorResponse("Error processing consent", error);
+      } else {
+        return internalServerErrorResponse(
+          "Unknown error occurred",
+          new Error(String(error))
+        );
       }
-      
+    }
 
     const headers = new Headers();
     headers.append(
@@ -194,6 +216,9 @@ export async function POST(request: NextRequest) {
 }
 
 
+
+// --- Error Helpers ---
+
 function badRequestResponse(message: string) {
   return withCORS(
     NextResponse.json({ error: "Bad Request", details: message }, { status: 400 })
@@ -210,25 +235,43 @@ function internalServerErrorResponse(message: string, error?: Error) {
   );
 }
 
-async function decryptData(encrypted: string, key: CryptoKey, iv: Uint8Array) {
-  console.log("Attempting decryption...");
-  const encryptedBuffer = Uint8Array.from(atob(encrypted), (c) =>
-    c.charCodeAt(0)
-  );
-  const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv },
-    key,
-    encryptedBuffer
-  );
-  return new TextDecoder().decode(decrypted);
+// --- AES-GCM Crypto Helpers ---
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
 }
 
 async function importKey(rawKey: Uint8Array): Promise<CryptoKey> {
-  return await crypto.subtle.importKey(
+  return crypto.subtle.importKey(
     "raw",
     rawKey,
     { name: "AES-GCM" },
-    true,
+    false,
     ["encrypt", "decrypt"]
   );
+}
+
+async function decryptData(
+  encryptedBase64: string,
+  key: CryptoKey,
+  iv: Uint8Array
+): Promise<string> {
+  const encryptedBytes = base64ToUint8Array(encryptedBase64);
+
+  const decryptedBuffer = await crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: iv,
+    },
+    key,
+    encryptedBytes
+  );
+
+  return new TextDecoder().decode(decryptedBuffer);
 }
