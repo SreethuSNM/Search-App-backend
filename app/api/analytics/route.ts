@@ -79,10 +79,11 @@ export async function GET(request: NextRequest) {
       throw new Error('No head section found');
     }
     const headContent = headMatch[1];
+    console.log("head content",headContent);
 
     // Define analytics script patterns with their categories
     const analyticsPatterns = [
-      // Google Analytics
+      
       { pattern: /googletagmanager\.com/, category: 'google' },
       { pattern: /google-analytics\.com/, category: 'google' },
       { pattern: /googleadservices\.com/, category: 'google' },
@@ -91,31 +92,34 @@ export async function GET(request: NextRequest) {
       { pattern: /google\.com\/tagmanager/, category: 'google' },
       { pattern: /_gtag/, category: 'google' },
       
-      // Hotjar
-      { pattern: /hotjar\.com/, category: 'hotjar' },
       
-      // Facebook
+      { pattern: /hotjar\.com/, category: 'hotjar' },
+    
+      
       { pattern: /connect\.facebook\.net/, category: 'facebook' },
       { pattern: /fbevents\.js/, category: 'facebook' },
       { pattern: /graph\.facebook\.com/, category: 'facebook' },
       { pattern: /business\.facebook\.com/, category: 'facebook' },
       
-      // Other Analytics
+
       { pattern: /clarity\.ms/, category: 'microsoft' },
       { pattern: /mouseflow\.com/, category: 'mouseflow' },
-      { pattern: /fullstory\.com/, category: 'fullstory' },
-      { pattern: /logrocket\.com/, category: 'logrocket' },
-      { pattern: /mixpanel\.com/, category: 'mixpanel' },
-      { pattern: /segment\.io/, category: 'segment' },
-      { pattern: /amplitude\.com/, category: 'amplitude' },
-      { pattern: /heap\.io/, category: 'heap' },
-      { pattern: /kissmetrics\.com/, category: 'kissmetrics' },
-      { pattern: /matomo\.org/, category: 'matomo' },
-      { pattern: /piwik\.org/, category: 'piwik' },
-      { pattern: /woopra\.com/, category: 'woopra' },
-      { pattern: /crazyegg\.com/, category: 'crazyegg' },
-      { pattern: /clicktale\.net/, category: 'clicktale' },
-      { pattern: /optimizely\.com/, category: 'optimizely' }
+      { pattern: /fullstory/, category: 'fullstory' },
+      { pattern: /logrocket/, category: 'logrocket' },
+      { pattern: /mixpanel/, category: 'mixpanel' },
+      { pattern: /segment/, category: 'segment' },
+      { pattern: /amplitude/, category: 'amplitude' },
+      { pattern: /heap/, category: 'heap' },
+      { pattern: /kissmetrics/, category: 'kissmetrics' },
+      { pattern: /matomo/, category: 'matomo' },
+      { pattern: /piwik/, category: 'piwik' },
+      { pattern: /woopra/, category: 'woopra' },
+      { pattern: /crazyegg/, category: 'crazyegg' },
+      { pattern: /clicktale/, category: 'clicktale' },
+      { pattern: /optimizely/, category: 'optimizely' },
+      { pattern: /plausible/, category: 'plausible' },
+
+
     ];
 
     // Extract scripts from head section
@@ -170,6 +174,10 @@ export async function GET(request: NextRequest) {
       totalScripts: scripts.length,
       totalAnalyticsScripts: scripts.length
     };
+
+
+
+    
 
     return withCORS(NextResponse.json({ 
       success: true,

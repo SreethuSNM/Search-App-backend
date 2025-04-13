@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { SignJWT, JWTPayload } from 'jose';
 import findSiteDetails from '@/app/lib/utils/find-site-details';
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 interface VisitorTokenPayload extends JWTPayload {
     visitorId: string;
@@ -10,26 +11,14 @@ interface VisitorTokenPayload extends JWTPayload {
     [key: string]: unknown; // Add index signature
 }
 
-
-
-
-function withCORS(response: NextResponse, origin: string | null) {
-    const headers = new Headers(response.headers);
-    
-    // Set specific origin instead of wildcard
-    const allowedOrigin = origin || 'https://consentbits-stellar-site.webflow.io';
-    headers.set("Access-Control-Allow-Origin", allowedOrigin);
-    headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID");
-    headers.set("Access-Control-Allow-Credentials", "true");
-    headers.set("Access-Control-Max-Age", "86400");
-    headers.set("Vary", "Origin");
-
-    return new NextResponse(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-    });
+// Helper function to add CORS headers
+function withCORS(response: NextResponse, origin: string | null): NextResponse {
+    if (origin) {
+        response.headers.set('Access-Control-Allow-Origin', origin);
+        response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    }
+    return response;
 }
 
 // Handle preflight requests
@@ -77,6 +66,22 @@ export async function POST(request: Request): Promise<NextResponse> {
         .setProtectedHeader({ alg: 'HS256' })
         .setExpirationTime('24h')
         .sign(new TextEncoder().encode(siteDetails.accessToken));
+
+        // Store the token in KV with the correct key format
+        const { env } = await getCloudflareContext();
+        if (!env?.WEBFLOW_AUTHENTICATION) {
+            return withCORS(
+                NextResponse.json(
+                    { error: 'KV binding missing' },
+                    { status: 500 }
+                ),
+                origin
+            );
+        }
+
+        // Store token with site-specific key
+        const kvKey = `visitor-token:${siteName}`;
+        await env.WEBFLOW_AUTHENTICATION.put(kvKey, token, { expirationTtl: 86400 }); // 24 hours
 
         return withCORS(
             NextResponse.json({

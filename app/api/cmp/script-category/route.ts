@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { verifyToken } from '@/app/lib/utils/visitor-token-verifiy';
-import findSiteDetails from '@/app/lib/utils/find-site-details';
+import { EncryptionUtils } from "@/app/lib/encryption-utils";
+import { verifyToken } from '@/app/lib/utils/token';
+import  findSiteDetails  from '@/app/lib/utils/find-site-details';
 
 // Allowed origins for CORS
 // const ALLOWED_ORIGINS = [
@@ -66,17 +67,17 @@ export async function OPTIONS() {
     },
   });
 }
+
 interface RequestBodyType {
-  siteName : string;
-  visitorId :string;
-  userAgent : string;
+  encryptedData: string;
+  key: number[];
+  iv: number[];
 }
+
 /**
- * GET: Retrieve script categories from KV after token verification.
+ * POST: Retrieve script categories from KV after token verification.
  */
 export async function POST(request: NextRequest) {
-  // const origin = request.headers.get("origin");
-
   try {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -85,10 +86,24 @@ export async function POST(request: NextRequest) {
   
     const token = authHeader.split(" ")[1];
     
-    // Get data from request body
+    // Get encrypted data from request body
     const body = await request.json();
-    const { siteName, visitorId } = body as RequestBodyType;
-    console.log("SITE NAME :",siteName);
+    const { encryptedData, key, iv } = body as RequestBodyType;
+    
+    if (!encryptedData || !key || !iv) {
+      return errorResponse("Missing encrypted data or encryption parameters", 400);
+    }
+
+    // Convert key and IV arrays to Uint8Array
+    const keyBytes = new Uint8Array(key);
+    const ivBytes = new Uint8Array(iv);
+
+    // Import the key for decryption
+    const cryptoKey = await EncryptionUtils.importKey(keyBytes, ['decrypt']);
+
+    // Decrypt the request data
+    const decryptedData = await EncryptionUtils.decrypt(encryptedData, cryptoKey, ivBytes);
+    const { siteName, visitorId } = JSON.parse(decryptedData);
     
     if (!siteName) {
       return errorResponse("Site name is required", 400);
@@ -119,33 +134,64 @@ export async function POST(request: NextRequest) {
     const value = await context.env.WEBFLOW_AUTHENTICATION.get(kvKey);
     
     if (!value) {
+      // Generate new encryption key for empty response
+      const { key: responseKey, iv: responseIv } = await EncryptionUtils.generateKey();
+      const emptyResponse = {
+        scripts: [],
+        message: "No script categories found for this site"
+      };
+      
+      // Encrypt the empty response
+      const encryptedResponse = await EncryptionUtils.encrypt(
+        JSON.stringify(emptyResponse),
+        responseKey,
+        responseIv
+      );
+      
+      // Export the key for client use
+      const exportedKey = await crypto.subtle.exportKey('raw', responseKey);
+      
       return withCORS(
         new NextResponse(JSON.stringify({
-          scripts: [],
-          message: "No script categories found for this site"
-        }), { status: 200 }),
-        
+          encryptedData: encryptedResponse,
+          key: Array.from(new Uint8Array(exportedKey)),
+          iv: Array.from(responseIv)
+        }), { status: 200 })
       );
     }
     
     try {
       const scriptData = JSON.parse(value);
-      return withCORS(
-        new NextResponse(JSON.stringify({ 
-          scripts: scriptData,
-          visitorId: visitorId 
-        }), { status: 200 }),
-        
+      
+      // Generate new encryption key for response
+      const { key: responseKey, iv: responseIv } = await EncryptionUtils.generateKey();
+      
+      // Prepare response data
+      const responseData = {
+        scripts: scriptData,
+        visitorId: visitorId
+      };
+      
+      // Encrypt the response
+      const encryptedResponse = await EncryptionUtils.encrypt(
+        JSON.stringify(responseData),
+        responseKey,
+        responseIv
       );
-    } catch (parseError) {
-      console.error("Failed to parse script data:", parseError, value);
+      
+      // Export the key for client use
+      const exportedKey = await crypto.subtle.exportKey('raw', responseKey);
+      
       return withCORS(
         new NextResponse(JSON.stringify({
-          scripts: [],
-          message: "Error parsing script categories"
-        }), { status: 500 }),
-        
+          encryptedData: encryptedResponse,
+          key: Array.from(new Uint8Array(exportedKey)),
+          iv: Array.from(responseIv)
+        }), { status: 200 })
       );
+    } catch (parseError) {
+      console.error("Failed to parse script data:", parseError);
+      return errorResponse("Error parsing script categories", 500);
     }
   } catch (err) {
     console.error("Unexpected error in POST handler:", err);

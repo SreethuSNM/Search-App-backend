@@ -12,6 +12,10 @@ interface SiteDetails {
 export default async function findSiteDetails(siteName: string): Promise<SiteDetails | null> {
     try {
         const { env } = await getCloudflareContext({ async: true });
+        if (!env?.WEBFLOW_AUTHENTICATION) {
+            console.error("KV binding missing");
+            return null;
+        }
         const keys = await env.WEBFLOW_AUTHENTICATION.list();
         console.log("siteName",siteName)
         console.log("ev keys",keys)
@@ -29,6 +33,7 @@ export default async function findSiteDetails(siteName: string): Promise<SiteDet
             }
         }
         return null;
+
     } catch (error) {
         console.error('Error finding site details:', error);
         return null;

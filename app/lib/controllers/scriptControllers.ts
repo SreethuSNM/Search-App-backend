@@ -62,7 +62,12 @@ export class ScriptController {
   async registerHostedScripts(siteId: string) {
     try {
       console.log("Siteid in hosted script",siteId)
-       const hostedLocation ="https://cdn.jsdelivr.net/gh/reshmalb17/cmp_script@7e40517/CB_Script.js";
+      //  const hostedLocation ="https://cdn.jsdelivr.net/gh/reshmalb17/cmp_script@3bf142c/New_Script.js";
+      const hostedLocation ="https://cdn.jsdelivr.net/gh/reshmalb17/cmp_script@2a31a60/New_Script.js";
+
+
+
+
       
        const integrityHash = await this.generateSRI(hostedLocation);
 
