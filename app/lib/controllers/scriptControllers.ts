@@ -12,6 +12,7 @@ interface WebflowError {
   message?: string;
 }
 
+
 function isWebflowError(error: unknown): error is WebflowError {
   return typeof error === "object" && error !== null && "statusCode" in error;
 }
@@ -61,7 +62,9 @@ export class ScriptController {
   async registerHostedScripts(siteId: string) {
     try {
       console.log("Siteid in hosted script",siteId)
-      const hostedLocation = "https://cdn.jsdelivr.net/gh/snm62/consentbit@08beb63/consentbit.js";
+      //  const hostedLocation ="https://cdn.jsdelivr.net/gh/reshmalb17/cmp_script@3bf142c/New_Script.js";
+      const hostedLocation ="https://cdn.jsdelivr.net/gh/reshmalb17/cmp_script@fddf514/cookieScript.js";
+      
        const integrityHash = await this.generateSRI(hostedLocation);
 
       const scriptData = {
@@ -70,7 +73,7 @@ export class ScriptController {
         integrityHash: integrityHash,
         canCopy:  true,
         version: "1.0.0",
-        displayName: `Consent Script${Date.now()}`,
+        displayName: `ConsentScript2025${Date.now()}`,
       };
       console.log("scriptData",scriptData)
       return await this.webflow.scripts.registerHosted(siteId, scriptData);

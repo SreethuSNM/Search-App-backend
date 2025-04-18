@@ -1,14 +1,17 @@
-// app/api/analytics/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import jwt from "../../lib/utils/jwt";
 
 // Define interfaces
 interface AnalyticsScript {
+  fullTag: string;
   src: string | null;
   content: string | null;
   type: string | null;
   async: boolean;
   defer: boolean;
+  crossorigin: string | null;
+  category: string;
 }
 
 interface AnalyticsResult {
@@ -20,7 +23,7 @@ interface AnalyticsResult {
 // Helper function to add CORS headers
 function withCORS(response: NextResponse) {
   response.headers.set("Access-Control-Allow-Origin", "*");
-  response.headers.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+  response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
   return response;
 }
@@ -32,38 +35,34 @@ export async function OPTIONS() {
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const siteUrl = searchParams.get('siteUrl');
-    const siteId = searchParams.get('siteId');
-
-    if (!siteUrl || !siteId) {
-      return withCORS(NextResponse.json(
-        { success: false, error: "Missing siteUrl or siteId" }, 
-        { status: 400 }
-      ));
+    // Verify authentication and get site ID from token
+    const accessToken = await jwt.verifyAuth(request);
+    if (!accessToken) {
+      return withCORS(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }));
+    }
+    const siteId = await jwt.getSiteIdFromAccessToken(accessToken);
+    if (!siteId) {
+      return withCORS(NextResponse.json({ 
+        error: "Unauthorized",
+        details: "SiteId not found"
+      }, { status: 401 }));
     }
 
-    // Get the Cloudflare KV binding
     const { env } = await getCloudflareContext({ async: true });
-    
-    // Retrieve the access token from KV storage with the correct key format
-    const storedAuth = await env.WEBFLOW_AUTHENTICATION.get(`site-auth:${siteId}`);
-    console.log("Stored auth data:", storedAuth);
-    
+    const storedAuth = await env.WEBFLOW_AUTHENTICATION.get(siteId)
     if (!storedAuth) {
       return withCORS(NextResponse.json(
         { success: false, error: "Unauthorized - No stored auth" }, 
         { status: 401 }
       ));
     }
+    const parsedData = JSON.parse(storedAuth)
+    const siteUrl = `https://${parsedData.siteName}.webflow.io`
 
-    const authData = JSON.parse(storedAuth);
-    console.log("Parsed auth data:", authData);
-
-    if (!authData.accessToken) {
+    if (!siteUrl || !siteId) {
       return withCORS(NextResponse.json(
-        { success: false, error: "Unauthorized - Invalid auth data" }, 
-        { status: 401 }
+        { success: false, error: "Missing siteUrl" }, 
+        { status: 400 }
       ));
     }
 
@@ -75,66 +74,108 @@ export async function GET(request: NextRequest) {
 
     const html = await response.text();
 
-    // Improved script extraction regex
-    const scriptRegex = /<script([^>]*)>([\s\S]*?)<\/script>/g;
-    const srcRegex = /src=["']([^"']+)["']/;
-    const typeRegex = /type=["']([^"']+)["']/;
-    const asyncRegex = /async/;
-    const deferRegex = /defer/;
+    const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+    if (!headMatch) {
+      throw new Error('No head section found');
+    }
+    const headContent = headMatch[1];
+    console.log("head content",headContent);
 
+    // Define analytics script patterns with their categories
+    const analyticsPatterns = [
+
+      { pattern: /googletagmanager\.com\/gtag\/js\?id=G-[\w-]+/, category: 'google-analytics' },
+      { pattern: /google-analytics\.com/, category: 'google-analytics' },      
+      { pattern: /googletagmanager\.com\/gtag\/js\?id=AW-[\w-]+/, category: 'google-ads' },
+      { pattern: /googleadservices\.com/, category: 'google-ads' },
+      { pattern: /doubleclick\.net/, category: 'google-ads' },
+      { pattern: /gtag\(['"]config['"],\s*['"]AW-[\w-]+['"]\)/, category: 'google-ads' },      
+      { pattern: /googletagmanager\.com/, category: 'google' },
+      { pattern: /google-analytics\.com/, category: 'google' },
+      { pattern: /googleadservices\.com/, category: 'google' },
+      { pattern: /doubleclick\.net/, category: 'google' },
+      { pattern: /google\.com\/ads/, category: 'google' },
+      { pattern: /google\.com\/tagmanager/, category: 'google' },
+      { pattern: /_gtag/, category: 'google' },          
+      { pattern: /hotjar\.com/, category: 'hotjar' },  
+      { pattern: /hotjar\.com/, category: 'hotjar' },
+    { pattern: /static\.hj\.contentsquare\.net/, category: 'hotjar' },
+    { pattern: /c\._hjSettings/, category: 'hotjar' },
+    { pattern: /hj\s*=\s*c\.hj/, category: 'hotjar' },
+    { pattern: /hj\.q/, category: 'hotjar' },
+    { pattern: /_hjSettings/, category: 'hotjar' },
+    { pattern: /\(function\s*\([^)]*\)\s*{\s*c\.hj\s*=/, category: 'hotjar' },
+    { pattern: /function\s*\(\s*h\s*,\s*o\s*,\s*t\s*,\s*j\s*,\s*a\s*,\s*r\s*\)/, category: 'hotjar' },      
+
+      { pattern: /connect\.facebook\.net/, category: 'facebook' },
+      { pattern: /fbevents\.js/, category: 'facebook' },
+      { pattern: /graph\.facebook\.com/, category: 'facebook' },
+      { pattern: /business\.facebook\.com/, category: 'facebook' },    
+      { pattern: /clarity\.ms/, category: 'clarity' },
+      { pattern: /mouseflow\.com/, category: 'mouseflow' },
+      { pattern: /fullstory/, category: 'fullstory' },
+      { pattern: /logrocket/, category: 'logrocket' },
+      { pattern: /mixpanel/, category: 'mixpanel' },
+      { pattern: /segment/, category: 'segment' },
+      { pattern: /amplitude/, category: 'amplitude' },
+      { pattern: /heap/, category: 'heap' },
+      { pattern: /kissmetrics/, category: 'kissmetrics' },
+      { pattern: /matomo/, category: 'matomo' },
+      { pattern: /piwik/, category: 'piwik' },
+      { pattern: /woopra/, category: 'woopra' },
+      { pattern: /crazyegg/, category: 'crazyegg' },
+      { pattern: /clicktale/, category: 'clicktale' },
+      { pattern: /optimizely/, category: 'optimizely' },
+      { pattern: /plausible/, category: 'plausible' },
+      { pattern: /hs-scripts\.com/, category: 'hubspot' },
+
+
+    ];
+
+    // Extract scripts from head section
     const scripts: AnalyticsScript[] = [];
+    const scriptRegex = /<script[^>]*>([\s\S]*?)<\/script>/gi;
+    const srcRegex = /src=["']([^"']+)["']/i;
+
     let match;
+    while ((match = scriptRegex.exec(headContent)) !== null) {
+      const fullScript = match[0];
+      const content = match[1]?.trim();
+      const srcMatch = fullScript.match(srcRegex);
+      const src = srcMatch ? srcMatch[1] : null;
 
-    while ((match = scriptRegex.exec(html)) !== null) {
-      const attributes = match[1];
-      const content = match[2];
-      
-      const srcMatch = attributes.match(srcRegex);
-      const typeMatch = attributes.match(typeRegex);
-      const async = asyncRegex.test(attributes);
-      const defer = deferRegex.test(attributes);
+      // Check if the script matches analytics patterns
+      const matchingPattern = analyticsPatterns.find(({ pattern }) => {
+        // Check both src and content for matches
+        if (src && pattern.test(src)) return true;
+        if (content && pattern.test(content)) return true;
+        return false;
+      });
 
-      // Only add if it's an analytics script
-      const isAnalytics = (
-        // Check src
-        (srcMatch && (
-          srcMatch[1].includes('google-analytics') ||
-          srcMatch[1].includes('googletagmanager') ||
-          srcMatch[1].includes('gtag') ||
-          srcMatch[1].includes('hotjar') ||
-          srcMatch[1].includes('facebook') ||
-          srcMatch[1].includes('fbq')
-        )) ||
-        // Check content
-        (content && (
-          content.includes('hotjar') ||
-          content.includes('fbq') ||
-          content.includes('dataLayer') ||
-          content.includes('gtag') ||
-          content.includes('googletagmanager')
-        ))
-      );
-
-      if (isAnalytics) {
+      if (matchingPattern) {
         scripts.push({
-          src: srcMatch ? srcMatch[1] : null,
-          content: content.trim() || null,
-          type: typeMatch ? typeMatch[1] : null,
-          async,
-          defer
+          fullTag: fullScript,
+          src: src,
+          content: content,
+          type: fullScript.match(/type=["']([^"']+)["']/i)?.[1] || null,
+          async: fullScript.includes('async'),
+          defer: fullScript.includes('defer'),
+          crossorigin: fullScript.match(/crossorigin=["']([^"']+)["']/i)?.[1] || null,
+          category: matchingPattern.category
         });
       }
     }
 
     // Log the results for debugging
-    console.log('Found analytics scripts:', scripts.length);
+    console.log('Found analytics scripts in header:', scripts.length);
     scripts.forEach(script => {
-      console.log('Script:', {
+      console.log('Analytics Script:', {
+        fullTag: script.fullTag,
+        category: script.category,
         src: script.src,
         type: script.type,
         async: script.async,
-        defer: script.defer,
-        contentLength: script.content?.length
+        defer: script.defer
       });
     });
 
@@ -144,11 +185,14 @@ export async function GET(request: NextRequest) {
       totalAnalyticsScripts: scripts.length
     };
 
+
+
+    
+
     return withCORS(NextResponse.json({ 
       success: true,
       data: result
     }));
-
   } catch (error: unknown) {
     console.error("Error fetching analytics scripts:", error);
     return withCORS(NextResponse.json(
@@ -159,4 +203,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     ));
   }
-}
+} 

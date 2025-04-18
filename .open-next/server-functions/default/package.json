@@ -11,9 +11,11 @@
     "deploy": "opennextjs-cloudflare && wrangler deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "generate-types": "wrangler types",
-    "type-check": "generate-types && tsc"
+    "type-check": "generate-types && tsc",
+    "build:cloudflare": "next build && opennextjs-cloudflare"
   },
   "dependencies": {
+    "crypto-js": "^4.2.0",
     "jose": "^6.0.10",
     "next": "^15.2.3",
     "puppeteer": "^24.4.0",

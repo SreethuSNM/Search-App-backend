@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ScriptController } from "@/app/lib/controllers/scriptControllers";
 import { WebflowClient } from "webflow-api";
-
-import { getCloudflareContext } from "@opennextjs/cloudflare";
-
+import jwt from "../../../lib/utils/jwt";
 interface CustomCodeRequestBody {
-  targetType: string;
-  targetId: string;
+  targetType: string; 
   scriptId: string;
-  location: "header" | "footer"; // ✅ Restrict to valid values
+  location: "header" | "footer";
   version: string;
-  
 }
 
 // Helper function to add CORS headers
@@ -26,7 +22,6 @@ export async function OPTIONS() {
   return withCORS(new NextResponse(null, { status: 204 }));
 }
 
-
 export async function POST(request: NextRequest) {
   try {
     // Clone the request to safely parse JSON and log it
@@ -34,71 +29,54 @@ export async function POST(request: NextRequest) {
     const body = (await clonedRequest.json()) as CustomCodeRequestBody;
     console.log("Request body:", body);
 
-    // Get the Cloudflare KV binding
-    const { env } = await getCloudflareContext({ async: true });
-    
-    // Log the key we're looking for
-    const authKey = `site-auth:${body.targetId}`;
-    console.log("Looking for auth data with key:", authKey);
-    
-    const storedAuth = await env.WEBFLOW_AUTHENTICATION.get(authKey);
-    console.log("Stored auth data:", storedAuth);
-
-    if (!storedAuth) {
-      console.error("No auth data found for key:", authKey);
-      return withCORS(NextResponse.json({ 
-        error: "Unauthorized: No authentication found",
-        details: `No auth data found for site ${body.targetId}`
-      }, { status: 401 }));
-    }
-    
-    const authData = JSON.parse(storedAuth);
-    console.log("Parsed auth data:", authData);
-    
-    const accessToken = authData?.accessToken;
-    if (!accessToken) {
-      console.log("@@@@@@@@@@------No Access token")
-      console.error("No access token in auth data:", authData);
-      return withCORS(NextResponse.json({ 
-        error: "Unauthorized",
-        details: "No access token found in stored auth data"
-      }, { status: 401 }));
-    }
-
-    // Destructure required fields from the request body
-    const { targetType, targetId, scriptId, location, version } = body;
-    console.log(targetType, targetId, scriptId, location, version, "body");
-
     // Validate that all required fields are present
-    if (!targetType || !targetId || !scriptId || !location || !version) {
+    if (!body.targetType ||  !body.scriptId || !body.location || !body.version) {
       return withCORS(NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       ));
     }
 
-    // Create Webflow Client
-    const webflow = new WebflowClient({ accessToken });
-    const scriptController = new ScriptController(webflow);
+    // Verify site authentication using the session token
+    const accessToken = await jwt.verifyAuth(request);
+    
+    if (!accessToken) {
+      console.error("Authentication failed:", accessToken);
+      return withCORS(NextResponse.json({ 
+        error: "Unauthorized",
+        details: accessToken || "Authentication failed"
+      }, { status: 401 }));
+    }
 
+    // Create Webflow Client with the verified access token
+    const webflow = new WebflowClient({ accessToken:accessToken });
+    const scriptController = new ScriptController(webflow);
+    const siteId = await jwt.getSiteIdFromAccessToken(accessToken) ;
+    if (!siteId) {
+      console.error("SiteId not found:", siteId);
+      return withCORS(NextResponse.json({ 
+        error: "Unauthorized",
+        details: siteId || "SiteId failed"
+      }, { status: 401 }));
+    }
     // Apply Custom Code
     let result;
 
-    if (targetType === "site") {
+    if (body.targetType === "site") {
       // Upsert Custom Code to Site
       result = await scriptController.upsertSiteCustomCode(
-        targetId,
-        scriptId,
-        location,
-        version
+        siteId,
+        body.scriptId,
+        body.location,
+        body.version
       );
-    } else if (targetType === "page") {
+    } else if (body.targetType === "page") {
       // Upsert Custom Code to Page
       result = await scriptController.upsertPageCustomCode(
-        targetId,
-        scriptId,
-        location,
-        version
+        siteId,
+        body.scriptId,
+        body.location,
+        body.version
       );
     } else {
       return withCORS(NextResponse.json(

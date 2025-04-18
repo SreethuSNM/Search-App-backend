@@ -38,13 +38,21 @@ export async function GET(request: NextRequest) {
 
     // Store Site ID & Access Token in Cloudflare KV
     await Promise.all(
-      siteList.map((site) =>
-        env.WEBFLOW_AUTHENTICATION.put(
-          site.id, // Use Site ID as the key
+      siteList.map(async (site) => {
+        // Store site details with site ID as key
+        await env.WEBFLOW_AUTHENTICATION.put(
+          site.id,
           JSON.stringify({ accessToken, siteName: site.shortName }),
           { expirationTtl: 86400 }
-        )
-      )
+        );
+
+        // Store site name to ID mapping
+        await env.WEBFLOW_AUTHENTICATION.put(
+          `site-name:${site.shortName}`,
+          site.id,
+          { expirationTtl: 86400 }
+        );
+      })
     );
 
     const isAppPopup = searchParams.get("state") === "webflow_designer";
