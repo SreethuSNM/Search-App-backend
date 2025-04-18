@@ -83,26 +83,35 @@ export async function GET(request: NextRequest) {
 
     // Define analytics script patterns with their categories
     const analyticsPatterns = [
-      
+
+      { pattern: /googletagmanager\.com\/gtag\/js\?id=G-[\w-]+/, category: 'google-analytics' },
+      { pattern: /google-analytics\.com/, category: 'google-analytics' },      
+      { pattern: /googletagmanager\.com\/gtag\/js\?id=AW-[\w-]+/, category: 'google-ads' },
+      { pattern: /googleadservices\.com/, category: 'google-ads' },
+      { pattern: /doubleclick\.net/, category: 'google-ads' },
+      { pattern: /gtag\(['"]config['"],\s*['"]AW-[\w-]+['"]\)/, category: 'google-ads' },      
       { pattern: /googletagmanager\.com/, category: 'google' },
       { pattern: /google-analytics\.com/, category: 'google' },
       { pattern: /googleadservices\.com/, category: 'google' },
       { pattern: /doubleclick\.net/, category: 'google' },
       { pattern: /google\.com\/ads/, category: 'google' },
       { pattern: /google\.com\/tagmanager/, category: 'google' },
-      { pattern: /_gtag/, category: 'google' },
-      
-      
+      { pattern: /_gtag/, category: 'google' },          
+      { pattern: /hotjar\.com/, category: 'hotjar' },  
       { pattern: /hotjar\.com/, category: 'hotjar' },
-    
-      
+    { pattern: /static\.hj\.contentsquare\.net/, category: 'hotjar' },
+    { pattern: /c\._hjSettings/, category: 'hotjar' },
+    { pattern: /hj\s*=\s*c\.hj/, category: 'hotjar' },
+    { pattern: /hj\.q/, category: 'hotjar' },
+    { pattern: /_hjSettings/, category: 'hotjar' },
+    { pattern: /\(function\s*\([^)]*\)\s*{\s*c\.hj\s*=/, category: 'hotjar' },
+    { pattern: /function\s*\(\s*h\s*,\s*o\s*,\s*t\s*,\s*j\s*,\s*a\s*,\s*r\s*\)/, category: 'hotjar' },      
+
       { pattern: /connect\.facebook\.net/, category: 'facebook' },
       { pattern: /fbevents\.js/, category: 'facebook' },
       { pattern: /graph\.facebook\.com/, category: 'facebook' },
-      { pattern: /business\.facebook\.com/, category: 'facebook' },
-      
-
-      { pattern: /clarity\.ms/, category: 'microsoft' },
+      { pattern: /business\.facebook\.com/, category: 'facebook' },    
+      { pattern: /clarity\.ms/, category: 'clarity' },
       { pattern: /mouseflow\.com/, category: 'mouseflow' },
       { pattern: /fullstory/, category: 'fullstory' },
       { pattern: /logrocket/, category: 'logrocket' },
@@ -118,6 +127,7 @@ export async function GET(request: NextRequest) {
       { pattern: /clicktale/, category: 'clicktale' },
       { pattern: /optimizely/, category: 'optimizely' },
       { pattern: /plausible/, category: 'plausible' },
+      { pattern: /hs-scripts\.com/, category: 'hubspot' },
 
 
     ];

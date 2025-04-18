@@ -94,6 +94,8 @@ export async function GET(request: NextRequest) {
       
       // Hotjar
       { pattern: /hotjar\.com/, category: 'hotjar' },
+      { pattern: /static\.hj\.contentsquare\.net\/c\/csq-/, category: 'hotjar' },
+
       
       // Facebook
       { pattern: /connect\.facebook\.net/, category: 'facebook' },

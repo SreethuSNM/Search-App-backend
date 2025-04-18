@@ -63,11 +63,7 @@ export class ScriptController {
     try {
       console.log("Siteid in hosted script",siteId)
       //  const hostedLocation ="https://cdn.jsdelivr.net/gh/reshmalb17/cmp_script@3bf142c/New_Script.js";
-      const hostedLocation ="https://cdn.jsdelivr.net/gh/reshmalb17/cmp_script@2a31a60/New_Script.js";
-
-
-
-
+      const hostedLocation ="https://cdn.jsdelivr.net/gh/reshmalb17/cmp_script@fddf514/cookieScript.js";
       
        const integrityHash = await this.generateSRI(hostedLocation);
 
