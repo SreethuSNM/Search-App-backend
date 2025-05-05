@@ -7,13 +7,16 @@ import { OauthScope } from "webflow-api/api/types/OAuthScope";
  * --------------------------
  * This route generates and redirects to Webflow's authorization URL.
  */
+export const runtime = "nodejs";
 
-const scopes = [
+const scopes: OauthScope[] = [
   "sites:read",
   "sites:write",
-  "custom_code:read",
-  "custom_code:write",
+  "cms:read",
+  "pages:read",
   "authorized_user:read",
+  "custom_code:read",
+  "custom_code:write",  
 ];
 
 export async function GET(request: Request) {

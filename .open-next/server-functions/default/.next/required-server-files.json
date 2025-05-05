@@ -96,7 +96,7 @@
         "transform": "lodash/{{member}}"
       }
     },
-    "outputFileTracingRoot": "C:\\Seattle\\Cookie App\\Consernbit-Cloudflare-Server-Test\\cb-server",
+    "outputFileTracingRoot": "D:\\cloudBackend\\search-server",
     "allowedDevOrigins": [],
     "experimental": {
       "allowedDevOrigins": [],
@@ -155,7 +155,7 @@
       "middlewarePrefetch": "flexible",
       "optimisticClientCache": true,
       "manualClientBasePath": false,
-      "cpus": 15,
+      "cpus": 7,
       "memoryBasedWorkersCount": false,
       "imgOptConcurrency": null,
       "imgOptTimeoutInSeconds": 7,
@@ -176,7 +176,7 @@
       "forceSwcTransforms": false,
       "largePageDataBytes": 128000,
       "turbo": {
-        "root": "C:\\Seattle\\Cookie App\\Consernbit-Cloudflare-Server-Test\\cb-server"
+        "root": "D:\\cloudBackend\\search-server"
       },
       "typedRoutes": false,
       "typedEnv": false,
@@ -292,7 +292,7 @@
       ]
     }
   },
-  "appDir": "C:\\Seattle\\Cookie App\\Consernbit-Cloudflare-Server-Test\\cb-server",
+  "appDir": "D:\\cloudBackend\\search-server",
   "relativeAppDir": "",
   "files": [
     ".next\\routes-manifest.json",

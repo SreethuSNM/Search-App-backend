@@ -4,7 +4,7 @@ import { WebflowRateLimiter } from "../services/WebflowRateLimiter";
 import crypto from "crypto";
 import {
  
-  CustomCodeInlineRequest,
+  
 } from "webflow-api/api/resources/scripts";
 
 interface WebflowError {
@@ -43,13 +43,14 @@ export class ScriptController {
     }
   }
 
-  async registerInlineScript(siteId: string, request: CustomCodeInlineRequest) {
+  async registerInlineScript(siteId: string) {
+    const sourceCode= "console.log('Hello');"
     try {
       const scriptData = {
-        sourceCode: request.sourceCode,
-        canCopy: request.canCopy ?? true,
-        version: request.version,
-        displayName: request.displayName,
+        sourceCode: sourceCode,
+        canCopy:  true,
+          version: "1.0.0",
+        displayName: "searchScript",
       };
       return await this.webflow.scripts.registerInline(siteId, scriptData);
     } catch (error) {
@@ -59,29 +60,29 @@ export class ScriptController {
   }
 
   
-  async registerHostedScripts(siteId: string) {
-    try {
-      console.log("Siteid in hosted script",siteId)
-      //  const hostedLocation ="https://cdn.jsdelivr.net/gh/reshmalb17/cmp_script@3bf142c/New_Script.js";
-      const hostedLocation ="https://cdn.jsdelivr.net/gh/reshmalb17/cmp_script@fddf514/cookieScript.js";
+  // async registerHostedScripts(siteId: string) {
+  //   try {
+  //     console.log("Siteid in hosted script",siteId)
+     
+  //     const hostedLocation ="";
       
-       const integrityHash = await this.generateSRI(hostedLocation);
+  //      const integrityHash = await this.generateSRI(hostedLocation);
 
-      const scriptData = {
-       // hostedLocation: request.hostedLocation,
-        hostedLocation: hostedLocation,
-        integrityHash: integrityHash,
-        canCopy:  true,
-        version: "1.0.0",
-        displayName: `ConsentScript2025${Date.now()}`,
-      };
-      console.log("scriptData",scriptData)
-      return await this.webflow.scripts.registerHosted(siteId, scriptData);
-    } catch (error) {
-      console.error("Error registering hosted script:", error);
-      throw error;
-    }
-  }
+  //     const scriptData = {
+  //      // hostedLocation: request.hostedLocation,
+  //       hostedLocation: hostedLocation,
+  //       integrityHash: integrityHash,
+  //       canCopy:  true,
+  //       version: "1.0.0",
+  //       displayName: `ConsentScript2025${Date.now()}`,
+  //     };
+  //     console.log("scriptData",scriptData)
+  //     return await this.webflow.scripts.registerHosted(siteId, scriptData);
+  //   } catch (error) {
+  //     console.error("Error registering hosted script:", error);
+  //     throw error;
+  //   }
+  // }
 
 
   // Site-level Methods
