@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     console.log("Initializing Script Controller...");
     const scriptController = new ScriptController(webflow);
     console.log("Registering hosted scripts...");
-    const result = await scriptController.registerInlineScript(siteId);
+    const result = await scriptController.registerHostedScripts(siteId);
     console.log("Script registration result:", result);
 
     return withCORS(NextResponse.json({ result }, { status: 200 }));

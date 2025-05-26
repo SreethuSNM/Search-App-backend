@@ -43,14 +43,14 @@ export async function GET(request: NextRequest) {
         await env.WEBFLOW_AUTHENTICATION.put(
           site.id,
           JSON.stringify({ accessToken, siteName: site.shortName }),
-          { expirationTtl: 86400 }
+         
         );
 
         // Store site name to ID mapping
         await env.WEBFLOW_AUTHENTICATION.put(
           `site-name:${site.shortName}`,
           site.id,
-          { expirationTtl: 86400 }
+         
         );
       })
     );

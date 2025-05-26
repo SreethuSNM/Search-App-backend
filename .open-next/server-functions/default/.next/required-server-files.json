@@ -96,7 +96,7 @@
         "transform": "lodash/{{member}}"
       }
     },
-    "outputFileTracingRoot": "D:\\cloudBackend\\search-server",
+    "outputFileTracingRoot": "D:\\SearchApp\\search-server",
     "allowedDevOrigins": [],
     "experimental": {
       "allowedDevOrigins": [],
@@ -176,7 +176,7 @@
       "forceSwcTransforms": false,
       "largePageDataBytes": 128000,
       "turbo": {
-        "root": "D:\\cloudBackend\\search-server"
+        "root": "D:\\SearchApp\\search-server"
       },
       "typedRoutes": false,
       "typedEnv": false,
@@ -292,7 +292,7 @@
       ]
     }
   },
-  "appDir": "D:\\cloudBackend\\search-server",
+  "appDir": "D:\\SearchApp\\search-server",
   "relativeAppDir": "",
   "files": [
     ".next\\routes-manifest.json",

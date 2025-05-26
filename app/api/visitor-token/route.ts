@@ -32,6 +32,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     try {
         const body = await request.json() as VisitorTokenPayload;
         const { visitorId, userAgent, siteName } = body;
+
+         
         console.log(" visitor-token",visitorId,userAgent,siteName)
 
         if (!visitorId || !siteName) {
